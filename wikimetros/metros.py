@@ -16,24 +16,23 @@ LENGTH_COL = 'length' # length in km
 STATIONS_COL = 'stations' # number of stations
 RIDERSHIP_COL = 'ridership' # annual ridership
 LINES_COL = 'lines' # number of lines
-OUTPUT_COLUMNS = [NAME_COL,CITY_COL,COUNTRY_COL,OPENED_COL,UPDATED_COL,LENGTH_COL,STATIONS_COL,RIDERSHIP_COL]
+OUTPUT_COLUMNS = [NAME_COL,CITY_COL,COUNTRY_COL,OPENED_COL,UPDATED_COL,LENGTH_COL,LINES_COL,STATIONS_COL,RIDERSHIP_COL]
 
 def writeMetroList(metro_list, out_file = OUTFILE):
 	f = open(out_file, 'w')
 	f.write(','.join(OUTPUT_COLUMNS) + '\n')
 	for m in metro_list:
-		try:
-			cols = []
-			for col in OUTPUT_COLUMNS:
-				if m[col] != None:
-					cols.append(str(m[col]))
-				else:
-					cols.append('')
-			f.write(','.join(cols) + '\n')
-		except:
-			print m
-			raise
+		f.write(getMetroRow(m) + '\n')
 	f.close()
+
+def getMetroRow(metro):
+	cols = []
+	for col in OUTPUT_COLUMNS:
+		if metro[col] != None:
+			cols.append(str(metro[col]))
+		else:
+			cols.append('')
+	return ','.join(cols)
 
 def getMetroList():
 	metro_list = []
@@ -76,6 +75,7 @@ def parseMetroRows(metro_rows):
 	return short_metro_list
 
 def parseSingleRow(row, city_and_country = None):
+	st = time.time()
 	metro = {}
 
 	cols = row.find_all('td')	
@@ -126,11 +126,30 @@ def parseSingleRow(row, city_and_country = None):
 		metro[RIDERSHIP_COL] = None
 
 	# nLines
-	# (we've got to go down one more link for this)
+	try:
+		metro[LINES_COL] = getLineCount(cols[-6])
+	except Exception as e:
+		metro[LINES_COL] = None
+		print(e)
 
-
+	print '%0.2fs,%s' % (time.time() - st, getMetroRow(metro))
 	return metro
 
+def getLineCount(metro_cell):
+	url = 'https://en.wikipedia.org' + metro_cell.find('a').attrs['href']
+	page = urllib2.urlopen(url)
+	soup = BeautifulSoup(page, 'html.parser')
+	infobox = soup.find('table',{'class':'infobox'})
+	for row in infobox.find_all('tr'):
+		header = row.find('th')
+		if header and header.text.upper() == 'NUMBER OF LINES':
+			lines = int(findFirstNumber(row.find_all('td')[-1].text))
+			return lines
+
+	return None
+
+def findFirstNumber(s):
+	return re.compile(r'([0-9]+)').findall(s)[0]
 
 starttime = time.time()
 if __name__ == '__main__':
